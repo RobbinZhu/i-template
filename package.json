@@ -1,0 +1,21 @@
+{
+  "name": "i-template",
+  "version": "0.0.1",
+  "description": "A nodejs template engine with full functions",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RobbinZhu/i-template.git"
+  },
+  "keywords": [
+    "nodejs",
+    "template",
+    "expressjs"
+  ],
+  "author": "robbin.zhu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/RobbinZhu/i-template/issues"
+  },
+  "homepage": "https://github.com/RobbinZhu/i-template"
+}
