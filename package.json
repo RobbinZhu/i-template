@@ -1,6 +1,6 @@
 {
   "name": "i-template",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A nodejs template engine with full functions",
   "main": "index.js",
   "repository": {

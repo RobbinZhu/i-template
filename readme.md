@@ -2,22 +2,19 @@
 
 A nodejs template engine with full functions.
 
-```js
-var template = require('i-template');
-template({})
-    .parse('<%=hi%>')
-    .compile()
-    .render({
-        hi: 'Hello World'
-    }, function (e, text) {
-        console.log(text);
-    });
-```
-
 ## Installation
 
 ```bash
 $ npm install i-template
+```
+
+```js
+var template = require('i-template');
+template.render('<%=hi%>', {
+    hi: 'Hello World'
+}, function(e, text) {
+    console.log(text); //Hello World
+});
 ```
 
 ## Features
@@ -25,14 +22,14 @@ $ npm install i-template
   * EJS grammar like
   * Control flow with `<% %>`
   * Output with `<%= %>`
-  * Raw output with `<%$ $%>`
+  * Literal output with `<%$ $%>`
   * Complies with the [Express](http://expressjs.com) view system
-  * Custom delimiters (e.g., use '<? ?>' instead of '<% %>')
   * Master page support
   * Sections support
   * Includes support
   * Cache of template compiled functions
   * Cache of common sections
+  * Custom delimiters (e.g., use '<? ?>' instead of '<% %>')
 
 ## Quick Start
   The quickest way to get started with i-template
