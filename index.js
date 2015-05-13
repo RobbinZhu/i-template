@@ -23,7 +23,9 @@ var fs = require('fs'),
         "\\": "\\\\"
     },
     clean_release_map = doc.clean_release_map = Object.create(clean_map);
+
 function doc(options) {
+    var keys = Object.keys(options);
     return {
         layout: UNDEFINED,
         sections: {},
@@ -31,13 +33,16 @@ function doc(options) {
         compile: compile,
         render: render,
         options: options,
-        close: options._close || '%>',
-        open: options._open || '<%',
+        close: options._close === UNDEFINED ? doc._close : options._close,
+        open: options._open === UNDEFINED ? doc._open : options._open,
         _cache: options._cache === UNDEFINED ? doc._cache : options._cache,
         _release: !(options._debug === UNDEFINED ? doc._debug : options._debug),
-        _nowith: options._nowith === UNDEFINED ? doc._nowith : options._nowith,
         fn: UNDEFINED,
-        exception: UNDEFINED
+        exception: UNDEFINED,
+        args: keys.map(function(key) {
+            return options[key];
+        }),
+        keys: ['locals'].concat(keys).join(',')
     };
 }
 
@@ -94,7 +99,7 @@ function render(callback) {
         return callback(this.exception);
     }
     try {
-        callback(UNDEFINED, this.fn(this.options));
+        callback(UNDEFINED, this.fn.apply({}, [this.options].concat(this.args)));
     } catch (e) {
         callback(e);
     }
@@ -103,12 +108,10 @@ function render(callback) {
 function stringify(doc, obj) {
     var root = obj === undefined,
         section,
-        str;
+        str = "";
     if (root) {
         obj = doc.layout;
-        str = "var _r = '';" + (doc._nowith ? "" : "with(locals||{}){");
-    } else {
-        str = "";
+        str = '"use strict";var _r = "";';
     }
     switch (toString.call(obj)) {
         case '[object Array]':
@@ -127,7 +130,7 @@ function stringify(doc, obj) {
             break;
     }
     if (root) {
-        str += (doc._nowith ? '' : '}') + "return _r;";
+        str += "return _r;";
     }
     return str;
 }
@@ -157,9 +160,9 @@ function parseby(text, doc) {
             check = '';
         }
         to = text.indexOf(check + close, from + open.length);
-        if(to < 0){
-            str = '$' +text.slice(from);
-        }else{
+        if (to < 0) {
+            str = '$' + text.slice(from);
+        } else {
             str = text.slice(from + open.length, to);
             to += close.length + check.length;
         }
@@ -224,7 +227,7 @@ function parseby(text, doc) {
 
 function fn(doc) {
     apply_cache(doc.sections);
-    return new Function('locals', stringify(doc));
+    return new Function(doc.keys, stringify(doc));
 }
 
 function readPath(file_path) {
@@ -243,6 +246,8 @@ function apply_cache(sections) {
     }
 }
 
+doc._open = '<%';
+doc._close = '%>';
 doc.__express = function(file_path, options, fn) {
     options._key = file_path;
     options._ext = path_extname(file_path);

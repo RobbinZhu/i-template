@@ -1,7 +1,7 @@
 {
   "name": "i-template",
-  "version": "0.0.2",
-  "description": "A nodejs template engine with full functions",
+  "version": "0.0.3",
+  "description": "Beautiful nodejs template engine with full functions",
   "main": "index.js",
   "repository": {
     "type": "git",
