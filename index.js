@@ -1,5 +1,4 @@
 'use strict';
-
 var fs = require('fs'),
     fs_readFileSync = fs.readFileSync,
     fs_existsSync = fs.existsSync,
@@ -8,10 +7,7 @@ var fs = require('fs'),
     path_extname = path.extname,
     path_join = path.join,
     toString = Object.prototype.toString,
-    UNDEFINED,
     cache = {},
-    cache_doc,
-    section_keys = [],
     clean_reg = /([\\\"\n\t\r\b\f])/gm,
     clean_map = {
         "\"": "\\\"",
@@ -22,10 +18,9 @@ var fs = require('fs'),
         "\f": "\\f",
         "\\": "\\\\"
     },
-    clean_release_map = doc.clean_release_map = Object.create(clean_map);
+    UNDEFINED;
 
 function doc(options) {
-    var keys = Object.keys(options);
     return {
         layout: UNDEFINED,
         sections: {},
@@ -37,12 +32,9 @@ function doc(options) {
         open: options._open === UNDEFINED ? doc._open : options._open,
         _cache: options._cache === UNDEFINED ? doc._cache : options._cache,
         _release: !(options._debug === UNDEFINED ? doc._debug : options._debug),
+        _nowith: options._nowith === UNDEFINED ? doc._nowith : options._nowith,
         fn: UNDEFINED,
-        exception: UNDEFINED,
-        args: keys.map(function(key) {
-            return options[key];
-        }),
-        keys: ['locals'].concat(keys).join(',')
+        exception: UNDEFINED
     };
 }
 
@@ -50,12 +42,8 @@ function literalize(match, token) {
     return clean_map[token];
 }
 
-function literalizeRelease(match, token) {
-    return clean_release_map[token];
-}
-
-function clean(text, release) {
-    return text.replace(clean_reg, release ? literalizeRelease : literalize);
+function clean(text) {
+    return text.replace(clean_reg, literalize);
 }
 
 function parse(obj, not_str) {
@@ -79,8 +67,7 @@ function parse(obj, not_str) {
 }
 
 function compile() {
-    if (this._cache && this.options._key && cache[this.options._key]) {
-        this.fn = cache[this.options._key];
+    if (this._cache && this.options._key && (this.fn = cache[this.options._key])) {
         return this;
     }
     try {
@@ -88,30 +75,32 @@ function compile() {
     } catch (e) {
         this.exception = e;
     }
-    if (this._cache && this.options._key) {
+    if (this.fn && this._cache && this.options._key) {
         cache[this.options._key] = this.fn;
     }
     return this;
 }
 
-function render(callback) {
-    if (this.exception) {
-        return callback(this.exception);
+function render(options, callback) {
+    var exception = this.exception,
+        rtn = '';
+    if (!exception) {
+        try {
+            rtn = this.fn(options);
+        } catch (e) {
+            exception = e;
+        }
     }
-    try {
-        callback(UNDEFINED, this.fn.apply({}, [this.options].concat(this.args)));
-    } catch (e) {
-        callback(e);
-    }
+    callback ? callback(exception, rtn) : (exception || rtn);
 }
 
 function stringify(doc, obj) {
-    var root = obj === undefined,
+    var root = obj === UNDEFINED,
         section,
         str = "";
     if (root) {
         obj = doc.layout;
-        str = '"use strict";var _r = "";';
+        str = (doc._nowith ? '"use strict";' : '') + "var _r = '';" + (doc._nowith ? "" : "with(locals||{}){");
     }
     switch (toString.call(obj)) {
         case '[object Array]':
@@ -130,7 +119,7 @@ function stringify(doc, obj) {
             break;
     }
     if (root) {
-        str += "return _r;";
+        str += (doc._nowith ? '' : '}') + "return _r;";
     }
     return str;
 }
@@ -150,7 +139,7 @@ function parseby(text, doc) {
     while (from >= 0) {
         from = text.indexOf(open, from);
         if (from > to || from < 0) {
-            buf.push('_r += "', clean(text.slice(to, from < 0 ? text.length : from), doc._release), '";');
+            buf.push('_r += "', clean(text.slice(to, from < 0 ? text.length : from)), '";');
         }
         if (from < 0) {
             break;
@@ -225,9 +214,8 @@ function parseby(text, doc) {
     return buf;
 }
 
-function fn(doc) {
-    apply_cache(doc.sections);
-    return new Function(doc.keys, stringify(doc));
+function fn(host) {
+    return new Function('locals', stringify(doc.apply_cache(host)));
 }
 
 function readPath(file_path) {
@@ -238,37 +226,25 @@ function read(file_path, options) {
     return readPath(path_join(options._base || '', file_path.trim()) + (options._ext || ''));
 }
 
-function apply_cache(sections) {
-    if (cache_doc) {
-        section_keys.forEach(function(key) {
-            sections[key] = cache_doc.sections[key];
-        });
-    }
-}
-
 doc._open = '<%';
 doc._close = '%>';
+doc._cache = doc._nowith = doc._debug = false;
+doc._parseby = parseby;
+doc._clean_map = clean_map;
+doc.cached_sections = [];
+doc.apply_cache = function(doc) {
+    this.cached_sections.forEach(function(cache) {
+        this[cache.key] = cache.value;
+    }, doc.sections);
+    return doc;
+};
 doc.__express = function(file_path, options, fn) {
     options._key = file_path;
     options._ext = path_extname(file_path);
     options._base = options.settings && options.settings.views;
-    return doc(options).parse(file_path.slice(options._base.length + 1, -options._ext.length), true).compile().render(fn);
+    return doc(options).parse(file_path.slice(options._base.length + 1, -options._ext.length), true).compile().render(options, fn);
 };
 doc.render = function(str, options, fn) {
-    doc(options).parse(str).compile().render(fn);
-};
-doc.cache_sections = function(dir, ext) {
-    if (ext === UNDEFINED) {
-        ext = '.html';
-    }
-    cache_doc = cache_doc || doc({});
-    fs.readdirSync(dir)
-        .filter(function(file) {
-            return file.slice(-ext.length) == ext;
-        })
-        .forEach(function(file) {
-            parseby(readPath(path_join(dir, file)), cache_doc);
-        });
-    section_keys = Object.keys(cache_doc.sections);
+    return doc(options).parse(str, false).compile().render(options, fn);
 };
 module.exports = doc;
